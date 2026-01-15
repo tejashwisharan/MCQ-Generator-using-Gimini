@@ -1,7 +1,9 @@
 
 export type Difficulty = 'low' | 'medium' | 'high';
+export type QuizStatus = 'uploading' | 'selecting_difficulty' | 'quiz' | 'summary';
 
 export interface MCQ {
+  id: string;
   question: string;
   options: string[];
   correctIndices: number[];
@@ -9,6 +11,7 @@ export interface MCQ {
 }
 
 export interface QuizState {
+  status: QuizStatus;
   currentQuestion: MCQ | null;
   history: MCQ[];
   difficulty: Difficulty;
@@ -17,4 +20,8 @@ export interface QuizState {
   isSubmitted: boolean;
   pdfBase64: string | null;
   pdfFileName: string | null;
+  score: {
+    correct: number;
+    total: number;
+  };
 }

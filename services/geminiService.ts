@@ -9,17 +9,11 @@ export const generateMCQ = async (
 ): Promise<MCQ> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
   
-  const difficultyPrompt = {
-    low: "easy, fundamental concepts, direct facts",
-    medium: "intermediate, application-based, requires some inference",
-    high: "complex, advanced reasoning, synthesizes multiple parts of the document"
+  const difficultyContext = {
+    low: "Focus on basic recall, definitions, and explicit facts found in the text.",
+    medium: "Focus on application of concepts, comparisons, and identifying relationships.",
+    high: "Focus on critical analysis, synthesis of multiple sections, and complex problem-solving."
   }[difficulty];
-
-  const prompt = `Based on the attached PDF document, generate exactly ONE unique multiple-choice question. 
-  The difficulty level should be ${difficulty} (${difficultyPrompt}).
-  Ensure the question is different from these previous questions: ${previousQuestions.join(' | ')}.
-  The question can have one or more correct answers (Multiple Select is allowed).
-  Provide a detailed explanation for why the answers are correct.`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -32,7 +26,18 @@ export const generateMCQ = async (
               data: pdfBase64,
             },
           },
-          { text: prompt },
+          { 
+            text: `Act as a professional educational assessment designer.
+            Create ONE high-quality multiple-choice question from this PDF.
+            
+            STRICT RULES:
+            1. Difficulty: ${difficulty} (${difficultyContext}).
+            2. Do NOT repeat or closely mimic these questions: ${previousQuestions.slice(-5).join(' | ')}.
+            3. Provide 4 distinct options.
+            4. At least one option must be correct. Multiple select is allowed.
+            5. The explanation must be pedagogical, explaining why the correct answers are right and why distractors are wrong.
+            6. Output strictly in JSON format.`
+          },
         ],
       },
     ],
@@ -41,24 +46,18 @@ export const generateMCQ = async (
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          question: {
-            type: Type.STRING,
-            description: "The text of the multiple choice question.",
-          },
+          question: { type: Type.STRING },
           options: {
             type: Type.ARRAY,
             items: { type: Type.STRING },
-            description: "A list of 4 possible options.",
+            minItems: 4,
+            maxItems: 4
           },
           correctIndices: {
             type: Type.ARRAY,
-            items: { type: Type.INTEGER },
-            description: "Indices of the correct options in the options array.",
+            items: { type: Type.INTEGER }
           },
-          explanation: {
-            type: Type.STRING,
-            description: "Explanation for the correct answer(s).",
-          },
+          explanation: { type: Type.STRING },
         },
         required: ["question", "options", "correctIndices", "explanation"],
       },
@@ -66,5 +65,8 @@ export const generateMCQ = async (
   });
 
   const result = JSON.parse(response.text || '{}');
-  return result as MCQ;
+  return {
+    ...result,
+    id: Math.random().toString(36).substring(7)
+  } as MCQ;
 };
