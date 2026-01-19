@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
-import { Question, Difficulty, FileData, QuestionType, ExamReport } from "../types";
+import { Question, Difficulty, FileData, QuestionType, ExamReport, AIModel } from "../types";
 
 // Always initialize GoogleGenAI with the API key from process.env.API_KEY.
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -8,7 +9,8 @@ export const generateQuestions = async (
   files: FileData[],
   count: number,
   difficulties: Difficulty[],
-  type: QuestionType
+  type: QuestionType,
+  models: AIModel[] = ['gemini']
 ): Promise<Question[]> => {
   // Use gemini-3-pro-preview for complex text generation tasks like exam creation.
   
@@ -19,7 +21,9 @@ export const generateQuestions = async (
     return { text: `Content from ${f.name}:\n${f.text}` };
   });
 
-  const promptText = `Act as an expert examiner. Generate ${count} exam questions based on the provided documents.
+  const modelNames = models.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' + ');
+  
+  const promptText = `Act as an expert examiner powered by an ensemble of ${modelNames}. Generate ${count} exam questions based on the provided documents.
   Difficulties to include: ${difficulties.join(', ')}.
   Question types: ${type === 'both' ? 'Mix of multiple choice and short answer' : type === 'mcq' ? 'All multiple choice' : 'All short answer'}.
 

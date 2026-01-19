@@ -3,6 +3,7 @@ export type Difficulty = 'low' | 'medium' | 'high';
 export type QuestionType = 'mcq' | 'text' | 'both';
 export type AppMode = 'quiz' | 'exam';
 export type QuizStatus = 'choosing_mode' | 'uploading' | 'configuring' | 'quiz' | 'summary' | 'report';
+export type AIModel = 'gemini' | 'claude' | 'openai' | 'llama';
 
 export interface FileData {
   name: string;
@@ -41,6 +42,7 @@ export interface QuizState {
     questionType: QuestionType;
     timeLimit: number; // in minutes
   };
+  selectedModels: AIModel[];
   currentQuestionIndex: number;
   questions: Question[];
   history: Question[];

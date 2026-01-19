@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { QuizState, QuizStatus, FileData, Question, AppMode, Difficulty } from './types';
+import { QuizState, QuizStatus, FileData, Question, AppMode, Difficulty, AIModel } from './types';
 import FileUploader from './components/FileUploader';
 import ExamConfigurator from './components/ExamConfigurator';
 import QuestionCard from './components/QuestionCard';
@@ -12,6 +13,7 @@ const App: React.FC = () => {
     status: 'choosing_mode',
     files: [],
     config: { questionCount: 10, difficulties: ['medium'], questionType: 'mcq', timeLimit: 20 },
+    selectedModels: ['gemini'],
     currentQuestionIndex: 0,
     questions: [],
     history: [],
@@ -47,6 +49,17 @@ const App: React.FC = () => {
     setState(prev => ({ ...prev, mode, status: 'uploading' }));
   };
 
+  const toggleModel = (model: AIModel) => {
+    setState(prev => {
+      const isSelected = prev.selectedModels.includes(model);
+      if (isSelected && prev.selectedModels.length === 1) return prev; // Prevent deselecting last one
+      const newSelection = isSelected 
+        ? prev.selectedModels.filter(m => m !== model)
+        : [...prev.selectedModels, model];
+      return { ...prev, selectedModels: newSelection };
+    });
+  };
+
   const handleUpload = (files: FileData[]) => {
     setState(prev => ({ ...prev, files, status: 'configuring' }));
   };
@@ -57,6 +70,7 @@ const App: React.FC = () => {
       status: 'choosing_mode',
       files: [],
       config: { questionCount: 10, difficulties: ['medium'], questionType: 'mcq', timeLimit: 20 },
+      selectedModels: ['gemini'],
       currentQuestionIndex: 0,
       questions: [],
       history: [],
@@ -74,7 +88,7 @@ const App: React.FC = () => {
       isGenerating: true 
     }));
     try {
-      const qs = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, [diff], 'mcq');
+      const qs = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, [diff], 'mcq', state.selectedModels);
       setState(prev => ({ 
         ...prev, 
         questions: qs, 
@@ -92,7 +106,7 @@ const App: React.FC = () => {
   const changeQuickQuizDifficulty = async (newDiff: Difficulty) => {
     setState(prev => ({ ...prev, isGenerating: true }));
     try {
-      const qs = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, [newDiff], 'mcq');
+      const qs = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, [newDiff], 'mcq', state.selectedModels);
       setState(prev => ({
         ...prev,
         config: { ...prev.config, difficulties: [newDiff] },
@@ -109,7 +123,7 @@ const App: React.FC = () => {
   const startExam = async (config: any) => {
     setState(prev => ({ ...prev, config, isGenerating: true }));
     try {
-      const qs = await generateQuestions(state.files, config.questionCount, config.difficulties, config.questionType);
+      const qs = await generateQuestions(state.files, config.questionCount, config.difficulties, config.questionType, state.selectedModels);
       setState(prev => ({ 
         ...prev, 
         questions: qs, 
@@ -153,7 +167,7 @@ const App: React.FC = () => {
       if (state.mode === 'quiz') {
         setState(prev => ({ ...prev, isGenerating: true }));
         try {
-          const newBatch = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, state.config.difficulties, 'mcq');
+          const newBatch = await generateQuestions(state.files, QUICK_QUIZ_BATCH_SIZE, state.config.difficulties, 'mcq', state.selectedModels);
           setState(prev => ({
             ...prev,
             questions: newBatch,
@@ -216,27 +230,61 @@ const App: React.FC = () => {
     switch (state.status) {
       case 'choosing_mode':
         return (
-          <div className="space-y-6">
-            <div className="text-center mb-10">
-              <h2 className="text-xl font-bold text-slate-400">Choose your path</h2>
+          <div className="space-y-8">
+            <div className="text-center">
+              <h2 className="text-xl font-bold text-slate-400 mb-6">Select your AI Neural Engine</h2>
+              <div className="flex flex-wrap justify-center gap-4 animate-slideUp">
+                {[
+                  { id: 'gemini', label: 'Gemini', color: 'bg-blue-50 text-blue-600 border-blue-200' },
+                  { id: 'claude', label: 'Claude', color: 'bg-orange-50 text-orange-600 border-orange-200' },
+                  { id: 'openai', label: 'GPT-4', color: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+                  { id: 'llama', label: 'Llama 3', color: 'bg-indigo-50 text-indigo-600 border-indigo-200' }
+                ].map((m) => {
+                  const isSelected = state.selectedModels.includes(m.id as AIModel);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => toggleModel(m.id as AIModel)}
+                      className={`px-6 py-3 rounded-2xl font-black border-2 transition-all flex items-center gap-2 ${
+                        isSelected 
+                          ? m.color.replace('bg-', 'bg-white ').replace('border-', 'border-current shadow-lg ring-2 ring-offset-2 ring-transparent ') 
+                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className={`w-2 h-2 rounded-full ${m.color.split(' ')[1].replace('text-', 'bg-')}`} />
+                      )}
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slideUp">
-              <button onClick={() => selectMode('quiz')} className="bg-white p-10 rounded-[40px] border-2 border-slate-50 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all text-left group relative overflow-hidden">
-                <div className="absolute top-4 right-4 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Infinite</div>
-                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                </div>
-                <h3 className="text-2xl font-black text-slate-800 mb-2">Quick Quiz</h3>
-                <p className="text-slate-500 leading-relaxed font-medium">Fast MCQ practice from a single file. Perfect for quick revision.</p>
-              </button>
-              <button onClick={() => selectMode('exam')} className="bg-white p-10 rounded-[40px] border-2 border-slate-50 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all text-left group relative overflow-hidden">
-                <div className="absolute top-4 right-4 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Formal</div>
-                <div className="w-16 h-16 bg-slate-50 text-slate-600 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                </div>
-                <h3 className="text-2xl font-black text-slate-800 mb-2">Formal Exam</h3>
-                <p className="text-slate-500 leading-relaxed font-medium">Timed sessions, multi-file synthesis, and full performance analysis.</p>
-              </button>
+
+            <div className="border-t border-slate-100" />
+
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-xl font-bold text-slate-400">Choose your path</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-slideUp">
+                <button onClick={() => selectMode('quiz')} className="bg-white p-10 rounded-[40px] border-2 border-slate-50 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all text-left group relative overflow-hidden">
+                  <div className="absolute top-4 right-4 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">Infinite</div>
+                  <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-800 mb-2">Quick Quiz</h3>
+                  <p className="text-slate-500 leading-relaxed font-medium">Fast MCQ practice from a single file. Perfect for quick revision.</p>
+                </button>
+                <button onClick={() => selectMode('exam')} className="bg-white p-10 rounded-[40px] border-2 border-slate-50 hover:border-indigo-500 hover:shadow-2xl hover:shadow-indigo-100 transition-all text-left group relative overflow-hidden">
+                  <div className="absolute top-4 right-4 bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-[10px] font-black uppercase">Formal</div>
+                  <div className="w-16 h-16 bg-slate-50 text-slate-600 rounded-3xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-800 mb-2">Formal Exam</h3>
+                  <p className="text-slate-500 leading-relaxed font-medium">Timed sessions, multi-file synthesis, and full performance analysis.</p>
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -368,7 +416,7 @@ const App: React.FC = () => {
           <div className="fixed inset-0 bg-white/90 backdrop-blur-md z-50 flex flex-col items-center justify-center animate-fadeIn">
             <div className="w-20 h-20 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-8"></div>
             <h2 className="text-3xl font-black text-slate-800 mb-2">Architecting Session</h2>
-            <p className="text-slate-500 font-medium">Synthesizing content with {state.config.difficulties[0]} difficulty...</p>
+            <p className="text-slate-500 font-medium">Synthesizing content with {state.selectedModels.map(m => m.charAt(0).toUpperCase() + m.slice(1)).join(' + ')}...</p>
           </div>
         )}
       </div>
